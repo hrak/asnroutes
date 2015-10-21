@@ -1,5 +1,5 @@
 /*
-asnroutes fetches all routes announced by an AS number from RADB
+asnroutes fetches all routing prefixes announced by an ASN from RADB
 The routes are then aggregated by checking for overlapping subnets
 
 The main goal for this tool is to create ACLs or firewall rules
@@ -132,12 +132,26 @@ func parseRanges(result []string) error {
 // We pass a pointer to the ipRanges slice to prevent a copy
 func aggregateRanges(ranges *ipRanges) {
 	// No need to check if there is only one range
-	if len(*ranges) > 1 {
-		for i := 0; i < len(*ranges); i++ {
-			for j := 0; j < len(*ranges); j++ {
-				if netutils.NetworkOverlaps((*ranges)[i], (*ranges)[j]) == true {
-					//fmt.Printf("Overlaps: %s\n", (*ranges)[j].IP)
-					*ranges, (*ranges)[len(*ranges)-1] = append((*ranges)[:j], (*ranges)[j+1:]...), nil
+	length := len(*ranges)
+	if length > 1 {
+		for i := 0; i < length; i++ {
+			for j := 0; j < length; j++ {
+				//fmt.Printf("i: %s j: %s ix:%x iy:%x\n", (*ranges)[i], (*ranges)[j], &(*ranges)[i], &(*ranges)[j])
+				if (&(*ranges)[i] != &(*ranges)[j]) && (netutils.NetworkOverlaps((*ranges)[i], (*ranges)[j]) == true) {
+					// ranges overlap, remove the smallest range
+					iSize, _ := (*ranges)[i].Mask.Size()
+					jSize, _ := (*ranges)[j].Mask.Size()
+					// compare netmask sizes. bigger mask = smaller range
+					if iSize > jSize {
+						// i range is smaller, remove from slice
+						*ranges, (*ranges)[length-1] = append((*ranges)[:i], (*ranges)[i+1:]...), nil
+						i--
+					} else {
+						// j range is smaller, remove from slice
+						*ranges, (*ranges)[length-1] = append((*ranges)[:j], (*ranges)[j+1:]...), nil
+						j--
+					}
+					length--
 				}
 			}
 		}
